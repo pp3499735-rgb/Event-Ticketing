@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
@@ -8,6 +8,7 @@ import { EventCard } from "@/components/event-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Spinner } from "@/components/ui/spinner"
 import {
   Select,
   SelectContent,
@@ -47,7 +48,19 @@ const categoryLabels = {
   food: "Food & Drinks",
 }
 
-export default function EventsPage() {
+function EventsPageLoading() {
+  return (
+    <div className="flex min-h-screen flex-col">
+      <Header />
+      <main className="flex-1 flex items-center justify-center">
+        <Spinner className="h-8 w-8" />
+      </main>
+      <Footer />
+    </div>
+  )
+}
+
+function EventsContent() {
   const searchParams = useSearchParams()
   const initialQuery = searchParams.get("q") || ""
   const initialCity = searchParams.get("city") || "All Cities"
@@ -276,5 +289,13 @@ export default function EventsPage() {
       </main>
       <Footer />
     </div>
+  )
+}
+
+export default function EventsPage() {
+  return (
+    <Suspense fallback={<EventsPageLoading />}>
+      <EventsContent />
+    </Suspense>
   )
 }
