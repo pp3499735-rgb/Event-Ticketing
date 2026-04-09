@@ -1,35 +1,92 @@
-# Event-Ticketing
+# HyperLocal
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [v0](https://v0.app).
+HyperLocal is a full-stack hyper-local event ticketing platform for college fests, pop-ups, workshops, and community events.
 
-## Built with v0
+## Stack
 
-This repository is linked to a [v0](https://v0.app) project. You can continue developing by visiting the link below -- start new chats to make changes, and v0 will push commits directly to this repo. Every merge to `main` will automatically deploy.
+- **Frontend:** Next.js (App Router) + Tailwind CSS
+- **Backend:** Next.js Route Handlers (serverless-friendly APIs)
+- **Database:** PostgreSQL + Prisma ORM
+- **Auth:** NextAuth (Email magic-link + Google OAuth)
+- **Deploy:** Vercel-ready monolith (frontend + backend in one app)
 
-[Continue working on v0 →](https://v0.app/chat/projects/prj_e6EUp2UeETRN9GUGtNDclmtZ7Yoj)
+## Features
 
-## Getting Started
+- Authentication with role-aware sessions (`ATTENDEE`, `ORGANIZER`)
+- Event discovery using geolocation/manual city, category/date filters, and distance radius
+- Organizer event creation with lat/long, pricing, and capacity
+- Ticket booking with unique UUID booking code and confirmation page
+- Attendance/check-in API for organizers
+- Dashboard for attendees and organizers
+- Seed script with demo users and events
 
-First, run the development server:
+## API Endpoints
+
+- `/api/auth/*` — NextAuth handlers
+- `/api/events` — `GET`, `POST`
+- `/api/events/[id]` — `GET`
+- `/api/bookings` — `GET`, `POST`
+- `/api/checkin` — `POST`
+
+## Environment Variables
+
+Create `.env`:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+DATABASE_URL="postgresql://..."
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="replace-with-long-random-secret"
+
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
+
+# Email provider used by NextAuth Email login
+EMAIL_SERVER="smtp://username:password@smtp.example.com:587"
+EMAIL_FROM="HyperLocal <noreply@hyperlocal.dev>"
+```
+
+> If you use **Vercel Postgres**, set `DATABASE_URL` from Vercel project env vars.
+
+## Local setup
+
+```bash
+pnpm install
+pnpm prisma:generate
+pnpm prisma:migrate
+pnpm prisma:seed
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open: `http://localhost:3000`
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Demo seed users
 
-## Learn More
+- Organizer: `organizer@hyperlocal.dev`
+- Attendee: `attendee@hyperlocal.dev`
 
-To learn more, take a look at the following resources:
+(For OAuth/magic-link, use real provider credentials. Seed users are for DB demo data.)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-- [v0 Documentation](https://v0.app/docs) - learn about v0 and how to use it.
+## Deploy to Vercel
 
-<a href="https://v0.app/chat/api/kiro/clone/pp3499735-rgb/Event-Ticketing" alt="Open in Kiro"><img src="https://pdgvvgmkdvyeydso.public.blob.vercel-storage.com/open%20in%20kiro.svg?sanitize=true" /></a>
+1. Push repo to GitHub.
+2. Import project in Vercel.
+3. Add env vars listed above.
+4. Provision Postgres (Vercel Postgres/Neon/Supabase) and set `DATABASE_URL`.
+5. Run migrations in Vercel build or CI:
+   ```bash
+   pnpm prisma migrate deploy
+   pnpm prisma generate
+   ```
+6. Deploy.
+
+### Notes
+
+- App is serverless-friendly: APIs are Next.js route handlers.
+- Seed locally for demo data (`pnpm prisma:seed`).
+- You can mock confirmation email behavior via the Email provider in development (Mailtrap recommended).
+
+## Optional enhancements already scaffolded
+
+- Distance-based filtering via Haversine
+- Debounced search in event discovery
+- Check-in endpoint to power QR/ticket scanner UI
