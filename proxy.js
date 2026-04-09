@@ -1,7 +1,6 @@
-import { type NextRequest } from "next/server"
 import { updateSession } from "@/lib/supabase/middleware"
 
-export async function middleware(request: NextRequest) {
+export async function middleware(request) {
   return await updateSession(request)
 }
 
@@ -13,7 +12,6 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public files (public directory)
-     * - api routes that don't need auth check in middleware
      */
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
