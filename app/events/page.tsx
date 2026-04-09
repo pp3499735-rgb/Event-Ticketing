@@ -1,13 +1,14 @@
 "use client"
 
-import { useState, useMemo, Suspense } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
+import Link from "next/link"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
-import { EventCard } from "@/components/event-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Card, CardContent } from "@/components/ui/card"
 import { Spinner } from "@/components/ui/spinner"
 import {
   Select,
@@ -26,9 +27,37 @@ import {
   UtensilsCrossed,
   Sparkles,
   X,
+  Calendar,
+  MapPin,
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
-import { events, cities } from "@/lib/data"
+
+interface Event {
+  id: string
+  title: string
+  description: string
+  category: string
+  image_url: string
+  date: string
+  time: string
+  venue: string
+  city: string
+  price: number
+  total_tickets: number
+  tickets_sold: number
+}
+
+const cities = [
+  "All Cities",
+  "Mumbai",
+  "Delhi",
+  "Bangalore",
+  "Chennai",
+  "Hyderabad",
+  "Pune",
+  "Kolkata",
+  "Jaipur",
+]
 
 const categoryIcons = {
   all: Sparkles,
@@ -46,6 +75,78 @@ const categoryLabels = {
   music: "Music",
   comedy: "Comedy",
   food: "Food & Drinks",
+}
+
+const categoryColors: Record<string, string> = {
+  "college-fest": "bg-blue-500/10 text-blue-500",
+  workshop: "bg-amber-500/10 text-amber-500",
+  music: "bg-pink-500/10 text-pink-500",
+  comedy: "bg-orange-500/10 text-orange-500",
+  food: "bg-green-500/10 text-green-500",
+}
+
+function EventCard({ event, index }: { event: Event; index: number }) {
+  const price = Number(event.price) || 0
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.05, duration: 0.4 }}
+    >
+      <Link href={`/events/${event.id}`}>
+        <Card className="group overflow-hidden transition-all hover:shadow-lg hover:border-primary/50">
+          <div className="relative aspect-[4/3] overflow-hidden bg-muted">
+            {event.image_url ? (
+              <img
+                src={event.image_url}
+                alt={event.title}
+                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center">
+                <Calendar className="h-12 w-12 text-muted-foreground" />
+              </div>
+            )}
+            <Badge
+              variant="secondary"
+              className={`absolute left-3 top-3 ${categoryColors[event.category] || "bg-primary/10 text-primary"}`}
+            >
+              {event.category.replace("-", " ")}
+            </Badge>
+          </div>
+          <CardContent className="p-4">
+            <h3 className="mb-2 font-semibold line-clamp-1 group-hover:text-primary transition-colors">
+              {event.title}
+            </h3>
+            <div className="space-y-1 text-sm text-muted-foreground">
+              <p className="flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5" />
+                {new Date(event.date).toLocaleDateString("en-IN", {
+                  month: "short",
+                  day: "numeric",
+                })}
+                {" at "}
+                {event.time}
+              </p>
+              <p className="flex items-center gap-1.5">
+                <MapPin className="h-3.5 w-3.5" />
+                {event.venue}, {event.city}
+              </p>
+            </div>
+            <div className="mt-3 flex items-center justify-between">
+              <span className="font-semibold text-primary">
+                {price === 0 ? "Free" : `₹${price}`}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {event.total_tickets - event.tickets_sold} left
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      </Link>
+    </motion.div>
+  )
 }
 
 function EventsPageLoading() {
@@ -66,44 +167,46 @@ function EventsContent() {
   const initialCity = searchParams.get("city") || "All Cities"
   const initialCategory = searchParams.get("category") || "all"
 
+  const [events, setEvents] = useState<Event[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState(initialQuery)
   const [selectedCity, setSelectedCity] = useState(initialCity)
   const [selectedCategory, setSelectedCategory] = useState(initialCategory)
   const [priceRange, setPriceRange] = useState<string>("all")
   const [showFilters, setShowFilters] = useState(false)
 
-  const filteredEvents = useMemo(() => {
-    return events.filter((event) => {
-      // Search query filter
-      if (
-        searchQuery &&
-        !event.title.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        !event.description.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        !event.venue.toLowerCase().includes(searchQuery.toLowerCase())
-      ) {
-        return false
+  useEffect(() => {
+    async function fetchEvents() {
+      setLoading(true)
+      try {
+        const params = new URLSearchParams()
+        if (searchQuery) params.set("q", searchQuery)
+        if (selectedCity !== "All Cities") params.set("city", selectedCity)
+        if (selectedCategory !== "all") params.set("category", selectedCategory)
+
+        const response = await fetch(`/api/events?${params.toString()}`)
+        if (response.ok) {
+          const data = await response.json()
+          setEvents(data)
+        }
+      } catch (error) {
+        console.error("Failed to fetch events:", error)
+      } finally {
+        setLoading(false)
       }
+    }
 
-      // City filter
-      if (selectedCity !== "All Cities" && event.city !== selectedCity) {
-        return false
-      }
+    fetchEvents()
+  }, [searchQuery, selectedCity, selectedCategory])
 
-      // Category filter
-      if (selectedCategory !== "all" && event.category !== selectedCategory) {
-        return false
-      }
-
-      // Price range filter
-      if (priceRange === "free" && event.price !== 0) return false
-      if (priceRange === "under500" && event.price >= 500) return false
-      if (priceRange === "500to1000" && (event.price < 500 || event.price > 1000))
-        return false
-      if (priceRange === "above1000" && event.price <= 1000) return false
-
-      return true
-    })
-  }, [searchQuery, selectedCity, selectedCategory, priceRange])
+  const filteredEvents = events.filter((event) => {
+    const price = Number(event.price) || 0
+    if (priceRange === "free" && price !== 0) return false
+    if (priceRange === "under500" && price >= 500) return false
+    if (priceRange === "500to1000" && (price < 500 || price > 1000)) return false
+    if (priceRange === "above1000" && price <= 1000) return false
+    return true
+  })
 
   const clearFilters = () => {
     setSearchQuery("")
@@ -252,15 +355,25 @@ function EventsContent() {
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="mb-6 flex items-center justify-between">
               <p className="text-sm text-muted-foreground">
-                Showing{" "}
-                <span className="font-medium text-foreground">
-                  {filteredEvents.length}
-                </span>{" "}
-                events
+                {loading ? (
+                  "Loading events..."
+                ) : (
+                  <>
+                    Showing{" "}
+                    <span className="font-medium text-foreground">
+                      {filteredEvents.length}
+                    </span>{" "}
+                    events
+                  </>
+                )}
               </p>
             </div>
 
-            {filteredEvents.length > 0 ? (
+            {loading ? (
+              <div className="flex justify-center py-20">
+                <Spinner className="h-8 w-8" />
+              </div>
+            ) : filteredEvents.length > 0 ? (
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {filteredEvents.map((event, index) => (
                   <EventCard key={event.id} event={event} index={index} />
@@ -277,11 +390,19 @@ function EventsContent() {
                 </div>
                 <h3 className="text-lg font-semibold">No events found</h3>
                 <p className="mt-1 text-muted-foreground">
-                  Try adjusting your search or filters
+                  {hasActiveFilters
+                    ? "Try adjusting your search or filters"
+                    : "Be the first to create an event!"}
                 </p>
-                <Button variant="outline" className="mt-4" onClick={clearFilters}>
-                  Clear filters
-                </Button>
+                {hasActiveFilters ? (
+                  <Button variant="outline" className="mt-4" onClick={clearFilters}>
+                    Clear filters
+                  </Button>
+                ) : (
+                  <Button className="mt-4" asChild>
+                    <Link href="/dashboard/create-event">Create Event</Link>
+                  </Button>
+                )}
               </motion.div>
             )}
           </div>

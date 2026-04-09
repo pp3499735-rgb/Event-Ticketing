@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, use } from "react"
+import { useState, useEffect, use } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { notFound } from "next/navigation"
@@ -10,7 +10,8 @@ import { BookingModal } from "@/components/booking-modal"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Spinner } from "@/components/ui/spinner"
 import {
   Calendar,
   Clock,
@@ -21,9 +22,30 @@ import {
   ChevronLeft,
   BadgeCheck,
   Ticket,
+  AlertCircle,
 } from "lucide-react"
 import { motion } from "framer-motion"
-import { events } from "@/lib/data"
+
+interface Event {
+  id: string
+  title: string
+  description: string
+  category: string
+  image_url: string
+  date: string
+  time: string
+  end_time: string
+  venue: string
+  city: string
+  address: string
+  price: number
+  total_tickets: number
+  tickets_sold: number
+  organizer_id: string
+  organizer_name: string
+  organizer_verified: boolean
+  status: string
+}
 
 interface EventPageProps {
   params: Promise<{ id: string }>
@@ -31,12 +53,67 @@ interface EventPageProps {
 
 export default function EventDetailPage({ params }: EventPageProps) {
   const { id } = use(params)
-  const event = events.find((e) => e.id === id)
+  const [event, setEvent] = useState<Event | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [isBookingOpen, setIsBookingOpen] = useState(false)
   const [isLiked, setIsLiked] = useState(false)
 
-  if (!event) {
+  useEffect(() => {
+    async function fetchEvent() {
+      try {
+        const response = await fetch(`/api/events/${id}`)
+        if (!response.ok) {
+          if (response.status === 404) {
+            setError("not_found")
+          } else {
+            throw new Error("Failed to fetch event")
+          }
+          return
+        }
+        const data = await response.json()
+        setEvent(data)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "An error occurred")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchEvent()
+  }, [id])
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen flex-col">
+        <Header />
+        <main className="flex flex-1 items-center justify-center">
+          <Spinner className="h-8 w-8" />
+        </main>
+      </div>
+    )
+  }
+
+  if (error === "not_found" || !event) {
     notFound()
+  }
+
+  if (error) {
+    return (
+      <div className="flex min-h-screen flex-col">
+        <Header />
+        <main className="flex flex-1 items-center justify-center">
+          <div className="text-center">
+            <AlertCircle className="mx-auto h-12 w-12 text-destructive" />
+            <h2 className="mt-4 text-lg font-semibold">Error Loading Event</h2>
+            <p className="mt-2 text-muted-foreground">{error}</p>
+            <Button asChild className="mt-4">
+              <Link href="/events">Back to Events</Link>
+            </Button>
+          </div>
+        </main>
+      </div>
+    )
   }
 
   const formattedDate = new Date(event.date).toLocaleDateString("en-IN", {
@@ -46,8 +123,11 @@ export default function EventDetailPage({ params }: EventPageProps) {
     day: "numeric",
   })
 
-  const soldPercentage = Math.round((event.soldTickets / event.totalTickets) * 100)
-  const ticketsLeft = event.totalTickets - event.soldTickets
+  const price = Number(event.price) || 0
+  const totalTickets = event.total_tickets || 100
+  const ticketsSold = event.tickets_sold || 0
+  const soldPercentage = Math.round((ticketsSold / totalTickets) * 100)
+  const ticketsLeft = totalTickets - ticketsSold
 
   const categoryColors: Record<string, string> = {
     "college-fest": "bg-blue-500/10 text-blue-500",
@@ -62,14 +142,20 @@ export default function EventDetailPage({ params }: EventPageProps) {
       <Header />
       <main className="flex-1">
         {/* Hero Image */}
-        <section className="relative h-[40vh] min-h-[300px] w-full overflow-hidden sm:h-[50vh]">
-          <Image
-            src={event.image}
-            alt={event.title}
-            fill
-            className="object-cover"
-            priority
-          />
+        <section className="relative h-[40vh] min-h-[300px] w-full overflow-hidden bg-muted sm:h-[50vh]">
+          {event.image_url ? (
+            <Image
+              src={event.image_url}
+              alt={event.title}
+              fill
+              className="object-cover"
+              priority
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center">
+              <Calendar className="h-16 w-16 text-muted-foreground" />
+            </div>
+          )}
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
 
           {/* Back Button */}
@@ -126,12 +212,12 @@ export default function EventDetailPage({ params }: EventPageProps) {
                     <CardContent className="p-6 sm:p-8">
                       <Badge
                         variant="secondary"
-                        className={`mb-4 ${categoryColors[event.category]}`}
+                        className={`mb-4 ${categoryColors[event.category] || "bg-primary/10 text-primary"}`}
                       >
                         {event.category.replace("-", " ")}
                       </Badge>
 
-                      <h1 className="text-2xl font-bold tracking-tight sm:text-3xl lg:text-4xl">
+                      <h1 className="text-2xl font-bold tracking-tight sm:text-3xl lg:text-4xl text-balance">
                         {event.title}
                       </h1>
 
@@ -166,7 +252,11 @@ export default function EventDetailPage({ params }: EventPageProps) {
                           </div>
                           <div>
                             <p className="font-medium text-foreground">Duration</p>
-                            <p className="text-sm">3-4 hours (approx.)</p>
+                            <p className="text-sm">
+                              {event.end_time
+                                ? `${event.time} - ${event.end_time}`
+                                : "3-4 hours (approx.)"}
+                            </p>
                           </div>
                         </div>
 
@@ -176,19 +266,21 @@ export default function EventDetailPage({ params }: EventPageProps) {
                           </div>
                           <div>
                             <p className="font-medium text-foreground">
-                              {event.soldTickets.toLocaleString()} attending
+                              {ticketsSold.toLocaleString()} attending
                             </p>
                             <p className="text-sm">{ticketsLeft} spots left</p>
                           </div>
                         </div>
                       </div>
 
-                      <div className="mt-8">
-                        <h2 className="mb-4 text-lg font-semibold">About this event</h2>
-                        <p className="leading-relaxed text-muted-foreground">
-                          {event.description}
-                        </p>
-                      </div>
+                      {event.description && (
+                        <div className="mt-8">
+                          <h2 className="mb-4 text-lg font-semibold">About this event</h2>
+                          <p className="leading-relaxed text-muted-foreground whitespace-pre-wrap">
+                            {event.description}
+                          </p>
+                        </div>
+                      )}
 
                       {/* Map Placeholder */}
                       <div className="mt-8">
@@ -199,7 +291,7 @@ export default function EventDetailPage({ params }: EventPageProps) {
                               <MapPin className="mx-auto h-8 w-8 text-muted-foreground" />
                               <p className="mt-2 font-medium">{event.venue}</p>
                               <p className="text-sm text-muted-foreground">
-                                {event.city}
+                                {event.address || event.city}
                               </p>
                             </div>
                           </div>
@@ -227,7 +319,7 @@ export default function EventDetailPage({ params }: EventPageProps) {
                             Starting from
                           </p>
                           <p className="text-3xl font-bold text-primary">
-                            {event.price === 0 ? "Free" : `₹${event.price}`}
+                            {price === 0 ? "Free" : `₹${price}`}
                           </p>
                         </div>
                         {soldPercentage >= 80 && (
@@ -257,9 +349,10 @@ export default function EventDetailPage({ params }: EventPageProps) {
                         className="w-full gap-2"
                         size="lg"
                         onClick={() => setIsBookingOpen(true)}
+                        disabled={ticketsLeft <= 0}
                       >
                         <Ticket className="h-5 w-5" />
-                        Book Now
+                        {ticketsLeft <= 0 ? "Sold Out" : "Book Now"}
                       </Button>
 
                       <p className="mt-3 text-center text-xs text-muted-foreground">
@@ -276,23 +369,19 @@ export default function EventDetailPage({ params }: EventPageProps) {
                       </h3>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-12 w-12">
-                          <AvatarImage
-                            src={event.organizer.avatar}
-                            alt={event.organizer.name}
-                          />
-                          <AvatarFallback>
-                            {event.organizer.name.charAt(0)}
+                          <AvatarFallback className="bg-primary/10 text-primary">
+                            {event.organizer_name?.charAt(0) || "O"}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1">
                           <div className="flex items-center gap-1">
-                            <p className="font-medium">{event.organizer.name}</p>
-                            {event.organizer.verified && (
+                            <p className="font-medium">{event.organizer_name}</p>
+                            {event.organizer_verified && (
                               <BadgeCheck className="h-4 w-4 text-primary" />
                             )}
                           </div>
                           <p className="text-sm text-muted-foreground">
-                            {event.organizer.verified
+                            {event.organizer_verified
                               ? "Verified Organizer"
                               : "Event Organizer"}
                           </p>
@@ -315,16 +404,17 @@ export default function EventDetailPage({ params }: EventPageProps) {
             <div>
               <p className="text-sm text-muted-foreground">From</p>
               <p className="text-xl font-bold text-primary">
-                {event.price === 0 ? "Free" : `₹${event.price}`}
+                {price === 0 ? "Free" : `₹${price}`}
               </p>
             </div>
             <Button
               className="gap-2 px-8"
               size="lg"
               onClick={() => setIsBookingOpen(true)}
+              disabled={ticketsLeft <= 0}
             >
               <Ticket className="h-5 w-5" />
-              Book Now
+              {ticketsLeft <= 0 ? "Sold Out" : "Book Now"}
             </Button>
           </div>
         </div>
